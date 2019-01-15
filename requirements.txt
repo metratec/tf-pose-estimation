@@ -9,3 +9,6 @@ scipy
 slidingwindow
 tqdm
 git+https://github.com/ppwwyyxx/tensorpack.git
+pyrealsense2
+opencv-python
+tensorflow
