@@ -6,6 +6,7 @@ from tf_pose.estimator import TfPoseEstimator
 from tf_pose.networks import get_graph_path, model_wh
 from realsense.realsense import RealSense
 from pose3d.human3d import Human3D
+import paho.mqtt.client as mqtt
 
 
 parser = argparse.ArgumentParser(description='tf-pose-estimation realtime webcam')
@@ -22,7 +23,7 @@ parser.add_argument('--show-process', type=bool, default=False,
 args = parser.parse_args()
 
 # TODO
-# TODO write human3d into json -> send to ROS via mqtt -> take from mqtt bridge and turn (automatically) into message -> create node that turns human into tf (or just vis. markers) -> show in rviz
+# TODO create node that turns human into tf (or just vis. markers) -> show in rviz
 # TODO docstrings for all functions to document inputs etc. -> update README
 # TODO
 
@@ -37,6 +38,8 @@ def main():
 
     rs = RealSense(filters=['align_ir', 'colorize', 'spatial', 'temporal', 'hole_filling'], laser_power=0.1)  # 'spatial' with current settings is slow
     h3d = Human3D()
+    client = mqtt.Client('rs1')
+    client.connect('localhost')
     while True:
         images = rs.cap(['ir1', 'depth'], type='np')
         t = time.time()
@@ -48,14 +51,18 @@ def main():
         # TODO
         if humans:
             updated_parts = h3d.set2d(humans[0], timestamp=t, threshold=0.1, dim=(360, 640))
+            for id in updated_parts:
+                pt = rs.get_3d(images[1], h3d.body_parts[id].pixel_coordinates, 'ir')
+                h3d.set3d(id, pt)
+
             if 5 in updated_parts:
                 # print left shoulder coordinates
-                pt = rs.get_3d(images[1], h3d.body_parts[5].pixel_coordinates, 'ir')
-                h3d.set3d(5, pt)
                 print('image: ', h3d.body_parts[5].pixel_coordinates)
                 print('3d: ', h3d.body_parts[5].camera_coordinates)
             else:
                 print('No left shoulder found')
+
+        client.publish('human', h3d.to_json())
         # TODO
 
         image = TfPoseEstimator.draw_humans(image, humans, imgcopy=False)
